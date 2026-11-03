@@ -211,12 +211,17 @@ async function lookup(address, opts) {
       raw = await civicGet('/voterinfo', Object.assign({}, params, { electionId: pick.id }), key, f);
     } else throw e;
   }
-  // Several elections that day and no contests: retry with the first election id.
+  // Several elections that day and no contests: Google withholds contests unless electionId is given.
+  // Try each election id we know of (the one returned plus the others) and keep the first with contests.
   if (!(raw.contests || []).length && !opts.electionId) {
-    const ids = [raw.election && raw.election.id].concat((raw.otherElections || []).map(e => e.id)).filter(Boolean);
-    const real = ids.filter(id => String(id) !== '2000');
-    if (real.length) {
-      try { raw = await civicGet('/voterinfo', Object.assign({}, params, { electionId: real[0] }), key, f); } catch (e) { /* keep first */ }
+    const ids = [raw.election && raw.election.id].concat((raw.otherElections || []).map(e => e.id))
+      .filter(id => id && String(id) !== '2000')
+      .filter((id, i, a) => a.indexOf(id) === i).slice(0, 5);
+    for (const id of ids) {
+      try {
+        const alt = await civicGet('/voterinfo', Object.assign({}, params, { electionId: id }), key, f);
+        if ((alt.contests || []).length) { raw = alt; break; }
+      } catch (e) { /* try the next one */ }
     }
   }
   return normalizeVoterInfo(raw);
@@ -255,7 +260,9 @@ async function handle(input, opts) {
     if (e instanceof CivicError) {
       const msg = e.code === 'no_data'
         ? 'No ballot data found for that address. This can mean the address was not recognized or the election is not covered yet.'
-        : e.code === 'auth' || e.code === 'config' ? 'The lookup service is not configured correctly.' : e.message;
+        : e.code === 'config' ? 'Setup problem: the server has no GOOGLE_CIVIC_API_KEY. Add it in Vercel and redeploy.'
+        : e.code === 'auth' ? 'Setup problem: Google rejected the API key (check it is pasted correctly and the Civic Information API is enabled for its project).'
+        : e.message;
       return { status: e.status === 404 ? 404 : e.status, body: { error: e.code, message: msg } };
     }
     return { status: 500, body: { error: 'internal', message: 'Something went wrong.' } };
