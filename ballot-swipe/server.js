@@ -16,14 +16,18 @@ http.createServer(async (req, res) => {
     let body = '';
     req.on('data', d => { body += d; if (body.length > 5000) req.destroy(); });
     req.on('end', async () => {
+      // POST only: an address in a URL would end up in request logs.
+      if (req.method !== 'POST') {
+        res.writeHead(405, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', allow: 'POST' });
+        return res.end(JSON.stringify({ error: 'method', message: 'Use the form on the site.' }));
+      }
       let p = {};
-      if (req.method === 'POST') { try { p = JSON.parse(body || '{}'); } catch (e) {} }
-      else p = { address: url.searchParams.get('address'), electionId: url.searchParams.get('electionId') };
+      try { p = JSON.parse(body || '{}'); } catch (e) {}
       let out;
       if (process.env.DEMO) {
         const sample = JSON.parse(fs.readFileSync(path.join(__dirname, 'test', 'fixture-voterinfo.json'), 'utf8'));
         out = { status: 200, body: normalizeVoterInfo(sample) };
-      } else out = await handle({ address: p.address, electionId: p.electionId, ip: req.socket.remoteAddress });
+      } else out = await handle({ address: p.address, electionId: p.electionId, ip: ((req.headers['x-forwarded-for'] || '').split(',')[0] || req.socket.remoteAddress || 'x').trim() });
       res.writeHead(out.status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
       res.end(JSON.stringify(out.body));
     });
