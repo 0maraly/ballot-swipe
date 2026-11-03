@@ -308,6 +308,7 @@ function answerLabels(responses){
   });
   return {yes:yes||'Yes',no:no||'No',exact:!!(yes&&no)};
 }
+function clip(t,n){ t=String(t||'').trim(); return t.length>n?t.slice(0,n).replace(/\s+\S*$/,'')+'…':t; }
 function buildDecks(){
   var seen={};
   function uid(base){ var id=base||'x',n=1; while(seen[id]){ n++; id=base+'-'+n; } seen[id]=1; return id; }
@@ -320,9 +321,9 @@ function buildDecks(){
     return {
       id:uid('m-'+slug(m.title+'-'+m.district)), n:i+1, title:m.title,
       kind:[m.level,m.district].filter(Boolean).join(' · ')||'Ballot measure',
-      ask:m.subtitle||m.brief||'', brief:m.subtitle?m.brief:'',
+      ask:m.subtitle||m.brief||clip(m.text,320), brief:m.subtitle?m.brief:'',
       yes:L.yes, no:L.no,
-      pro:m.pro, con:m.con, text:m.text, know:know, url:m.url,
+      pro:m.pro, con:m.con, text:(m.subtitle||m.brief)?m.text:(m.text&&m.text.length>320?m.text:''), know:know, url:m.url,
       src:(m.sources||[]).map(function(s){return s.name;}).join(', ')
     };
   });
