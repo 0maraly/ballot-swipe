@@ -1,0 +1,12 @@
+{
+  "name": "ballot-swipe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Swipe through your ballot. Address lookup via the Google Civic Information API.",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "demo": "DEMO=1 node server.js",
+    "test": "node test/ballot.test.js"
+  }
+}

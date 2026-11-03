@@ -1,0 +1,76 @@
+{
+  "kind": "civicinfo#voterInfoResponse",
+  "election": { "id": "9999", "name": "SAMPLE General Election (fictional demo data)", "electionDay": "2026-11-03" },
+  "normalizedInput": { "line1": "1 Example St", "city": "Springfield", "state": "XX", "zip": "00000" },
+  "mailOnly": false,
+  "contests": [
+    {
+      "type": "General", "office": "Mayor", "level": ["locality"], "roles": ["headOfGovernment"],
+      "district": { "name": "City of Springfield", "scope": "cityCouncil" },
+      "ballotPlacement": 3,
+      "candidates": [
+        { "name": "Pat Sample", "party": "Nonpartisan", "orderOnBallot": 2, "candidateUrl": "https://example.org/pat" },
+        { "name": "Jordan Placeholder", "party": "Nonpartisan", "orderOnBallot": 1 }
+      ],
+      "sources": [{ "name": "Sample Election Office", "official": true }]
+    },
+    {
+      "type": "General", "office": "U.S. Senator", "level": ["country"], "roles": ["legislatorUpperBody"],
+      "district": { "name": "State of Example", "scope": "statewide" },
+      "ballotPlacement": 1, "numberElected": "1", "numberVotingFor": "1",
+      "candidates": [
+        { "name": "Alex Demo", "party": "Democratic Party", "orderOnBallot": 1 },
+        { "name": "Sam Mockup", "party": "Republican Party", "orderOnBallot": 2 },
+        { "name": "Riley Fixture", "party": "Libertarian Party", "orderOnBallot": 3 }
+      ]
+    },
+    {
+      "type": "General", "office": "School Committee", "level": ["locality"], "roles": ["schoolBoard"],
+      "district": { "name": "Springfield Schools" },
+      "ballotPlacement": 4, "numberElected": "2", "numberVotingFor": "2",
+      "candidates": [
+        { "name": "Casey One" }, { "name": "Drew Two" }, { "name": "Morgan Three" }
+      ]
+    },
+    {
+      "type": "Referendum", "level": ["administrativeArea1"],
+      "district": { "name": "State of Example" },
+      "ballotPlacement": 2,
+      "referendumTitle": "Question 1: Sample Transit Bond",
+      "referendumSubtitle": "Shall the state borrow $100 million for buses?",
+      "referendumBrief": "A fictional measure that would authorize bonds for bus service.",
+      "referendumProStatement": "Supporters say it funds service that riders rely on.",
+      "referendumConStatement": "Opponents say it adds to state debt.",
+      "referendumPassageThreshold": "A simple majority",
+      "referendumEffectOfAbstain": "Not counted either way",
+      "referendumBallotResponses": ["Yes", "No"],
+      "referendumUrl": "https://example.org/q1"
+    },
+    {
+      "type": "Referendum", "level": ["locality"],
+      "district": { "name": "City of Springfield" },
+      "referendumTitle": "Measure B",
+      "referendumBrief": "",
+      "referendumBallotResponses": ["Yes", "No"]
+    }
+  ],
+  "pollingLocations": [
+    { "address": { "locationName": "Springfield Library", "line1": "10 Main St", "city": "Springfield", "state": "XX", "zip": "00000" }, "pollingHours": "7am-8pm" }
+  ],
+  "earlyVoteSites": [],
+  "dropOffLocations": [
+    { "address": { "locationName": "City Hall", "line1": "1 Plaza", "city": "Springfield", "state": "XX", "zip": "00000" }, "notes": "Open until 8pm" }
+  ],
+  "state": [
+    {
+      "name": "Example",
+      "electionAdministrationBody": {
+        "name": "Example Division of Elections",
+        "electionInfoUrl": "https://example.gov/elections",
+        "votingLocationFinderUrl": "https://example.gov/where",
+        "absenteeVotingInfoUrl": "javascript:alert(1)",
+        "ballotInfoUrl": "https://example.gov/ballot"
+      }
+    }
+  ]
+}

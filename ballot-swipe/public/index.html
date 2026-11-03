@@ -1,0 +1,949 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ballot Swipe</title>
+<meta name="description" content="Swipe through your ballot. Enter your address to see the measures and candidates you will vote on.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout concept: one ballot slip at a time on a cool-gray desk. Optical-scan ovals are the vote marks, a dashed perforation sits above the info button, and a strip of dots tracks progress. */
+:root{
+  --bg:#E3E8EF; --surface:#FFFFFF; --surface-2:#F1F4F8;
+  --ink:#111A2B; --muted:#566178; --rule:#C7CFDA;
+  --accent:#143A7B; --accent-ink:#FFFFFF;
+  --yes:#0E7A4E; --yes-bg:#D9F1E5; --no:#B3261E; --no-bg:#FADDD9; --on-solid:#FFFFFF;
+  --shadow:0 1px 2px rgba(17,26,43,.08), 0 14px 30px -12px rgba(17,26,43,.3);
+  --f-display:'Barlow Condensed','Arial Narrow',Arial,sans-serif;
+  --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1119; --surface:#151C29; --surface-2:#1C2535;
+    --ink:#E7ECF4; --muted:#9AA6BA; --rule:#2C374A;
+    --accent:#86ADEF; --accent-ink:#0B1220;
+    --yes:#4CCB93; --yes-bg:#12392B; --no:#F4837A; --no-bg:#43191A; --on-solid:#0B1220;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 16px 34px -14px rgba(0,0,0,.8);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1119; --surface:#151C29; --surface-2:#1C2535;
+  --ink:#E7ECF4; --muted:#9AA6BA; --rule:#2C374A;
+  --accent:#86ADEF; --accent-ink:#0B1220;
+  --yes:#4CCB93; --yes-bg:#12392B; --no:#F4837A; --no-bg:#43191A; --on-solid:#0B1220;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 16px 34px -14px rgba(0,0,0,.8);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+html,body{overscroll-behavior-x:none}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:var(--f-body); font-size:15px; line-height:1.5;
+  padding-block:14px 44px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{max-width:460px;margin:0 auto;min-width:0}
+
+/* header */
+.brandrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-weight:700;font-size:30px;line-height:1;letter-spacing:.03em;text-transform:uppercase;margin:0}
+.where{font:400 11.5px var(--f-mono);color:var(--muted);letter-spacing:.02em}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);border:1.5px solid var(--ink);border-radius:10px;overflow:hidden}
+.tab{padding:9px 4px;background:transparent;border:0;border-right:1.5px solid var(--ink);font:500 11.5px var(--f-mono);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;color:var(--ink)}
+.tab:last-child{border-right:0}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.tab .ct{opacity:.75;margin-left:4px}
+.dots{display:flex;gap:6px;overflow-x:auto;padding:12px 3px 6px;scrollbar-width:none}
+.dots::-webkit-scrollbar{display:none}
+.dot{flex:none;min-width:30px;height:24px;padding:0 8px;border:1.5px solid var(--rule);border-radius:12px;background:var(--surface);color:var(--muted);font:500 11px var(--f-mono);cursor:pointer;white-space:nowrap}
+.dot.yes{background:var(--yes);border-color:var(--yes);color:var(--on-solid)}
+.dot.no{background:var(--no);border-color:var(--no);color:var(--on-solid)}
+.dot.office.done{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.dot.cur{outline:2px solid var(--accent);outline-offset:2px}
+
+/* play area */
+.legend{display:flex;justify-content:space-between;gap:8px;margin:10px 2px 10px;font:500 11.5px var(--f-mono);letter-spacing:.05em;text-transform:uppercase}
+.lg.no{color:var(--no)} .lg.yes{color:var(--yes)}
+.officehead{margin:12px 2px 12px}
+.eyebrow{margin:0 0 2px;font:500 11.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.otitle{font-family:var(--f-display);font-weight:700;font-size:32px;line-height:1.05;margin:0 0 6px;text-wrap:balance}
+.steps{margin:0;font-size:13.5px;color:var(--muted)}
+.steps b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--ink);color:var(--bg);font:500 11px var(--f-mono);margin-right:3px}
+.callout{margin:10px 0 0;padding:9px 12px;border:1px dashed var(--rule);border-radius:10px;font-size:13px;color:var(--muted);background:var(--surface)}
+
+.lineup{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:0 0 4px}
+.mini{display:grid;grid-template-columns:34px minmax(0,1fr) 22px;gap:9px;align-items:center;text-align:left;padding:9px 10px;border:1.5px solid var(--rule);border-radius:12px;background:var(--surface);cursor:pointer}
+.mini.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.mini.pick{border-color:var(--yes)}
+.mini.passed{opacity:.55}
+.mini.passed b{text-decoration:line-through}
+.av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--rule);font:500 12px var(--f-mono)}
+.mn b{display:block;font-size:14px;line-height:1.2;overflow-wrap:anywhere}
+.mn small{display:block;color:var(--muted);font-size:12px;line-height:1.3}
+
+.stage{position:relative;height:clamp(470px,68vh,600px);margin:0 0 30px}
+.stage.cand{height:clamp(420px,60vh,520px)}
+.peek{position:absolute;inset:0;background:var(--surface);border:1px solid var(--rule);border-radius:16px;box-shadow:var(--shadow)}
+.peek.p1{transform:translateY(10px) scale(.965);opacity:.9}
+.peek.p2{transform:translateY(20px) scale(.93);opacity:.55}
+.card{position:absolute;inset:0;touch-action:pan-y;cursor:grab;outline:none;will-change:transform;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.card *{touch-action:pan-y}
+.card.static,.card.static *{cursor:default;touch-action:auto}
+.card.dragging{cursor:grabbing}
+.card.settle{transition:transform .25s cubic-bezier(.2,.9,.3,1.15)}
+.card.leaving{transition:transform .26s ease-in,opacity .26s ease-in}
+.card.enter{animation:enter .3s ease-out}
+@keyframes enter{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:none}}
+.card:focus-visible .face.front{outline:3px solid var(--accent);outline-offset:3px}
+.inner{position:absolute;inset:0;transition:transform .19s ease-in-out}
+.face{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--rule);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+.face.back{visibility:hidden}
+.card.flipped .face.front{visibility:hidden}
+.card.flipped .face.back{visibility:visible}
+.face.back .body{-webkit-user-select:text;user-select:text}
+.face.front{user-select:none;-webkit-user-select:none}
+.face::before{content:"";position:absolute;inset:0;background:var(--tintc,transparent);opacity:var(--tinta,0);pointer-events:none}
+.face.front::after{content:"";position:absolute;right:5px;top:56px;bottom:72px;width:5px;opacity:.22;background:repeating-linear-gradient(to bottom,var(--ink) 0 7px,transparent 7px 15px);pointer-events:none}
+.band,.body,.foot{position:relative;z-index:1}
+.band{flex:none;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;background:var(--accent);color:var(--accent-ink);font:500 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase}
+.band.alt{background:var(--ink);color:var(--bg)}
+.band b{font-weight:500}
+.body{flex:1;min-height:0;overflow-y:auto;padding:16px 22px 12px 18px}
+.body.center{display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+h2{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1.02;letter-spacing:.005em;margin:0 0 10px;text-wrap:balance}
+.ask{font-size:15.5px;margin:0 0 14px}
+.marks{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.mark{display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;align-items:start;padding:10px 12px;border:1px solid var(--rule);border-radius:10px;background:var(--surface-2)}
+.mark p{margin:2px 0 0;font-size:13.5px;line-height:1.4;color:var(--muted)}
+.mk-head{font:500 11.5px var(--f-mono);letter-spacing:.08em}
+.mark.yes .mk-head{color:var(--yes)} .mark.no .mk-head{color:var(--no)}
+.oval{display:inline-block;width:22px;height:14px;border:2px solid var(--ink);border-radius:50%;margin-top:2px;transition:background .2s}
+.oval.sm{width:18px;height:12px;margin:0}
+.mark.yes.filled .oval,.oval.sm.filled{background:var(--yes);border-color:var(--yes)}
+.mark.no.filled .oval{background:var(--no);border-color:var(--no)}
+.foot{flex:none;display:flex;justify-content:center;align-items:center;height:64px;border-top:1px dashed var(--rule)}
+.ibtn{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--ink);background:transparent;color:var(--ink);font:italic 700 22px/1 var(--f-display);cursor:pointer}
+.ibtn.on{background:var(--ink);color:var(--surface)}
+.stamp{position:absolute;top:60px;z-index:3;padding:0 12px;border:4px solid;border-radius:8px;font:700 44px/1.15 var(--f-display);letter-spacing:.06em;opacity:0;pointer-events:none}
+.stamp.yes{left:16px;color:var(--yes);border-color:var(--yes);transform:rotate(-12deg)}
+.stamp.no{right:20px;color:var(--no);border-color:var(--no);transform:rotate(12deg)}
+
+/* candidate card */
+.avatar{width:76px;height:76px;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);border:2px solid var(--ink);font:700 32px/1 var(--f-display);margin:0 0 12px}
+.party{margin:0 0 4px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pill{display:inline-block;padding:2px 9px;border:1.5px solid var(--ink);border-radius:999px;font:500 11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase}
+.pill.yes{background:var(--yes-bg);border-color:var(--yes);color:var(--yes)}
+.pill.no{background:var(--no-bg);border-color:var(--no);color:var(--no)}
+.pill.none{border-color:var(--rule);color:var(--muted)}
+.role{font:500 11.5px var(--f-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.ticket{margin:0 0 12px;font-size:13.5px;color:var(--muted)}
+.cand-marks{margin-top:12px}
+
+/* back face */
+.sec h3{margin:14px 0 4px;font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.body.info>.sec:first-child h3{margin-top:0}
+.sec.yes h3{color:var(--yes)} .sec.no h3{color:var(--no)}
+.sec p{margin:0;font-size:14px}
+.sec ul{margin:0;padding-left:18px;font-size:14px}
+.sec li{margin:0 0 4px}
+.src{margin:16px 0 0;font-size:12px;color:var(--muted)}
+.src a{color:var(--accent)}
+.nudge{margin:8px 0 0;font-size:12.5px;color:var(--muted)}
+
+/* static cards */
+.bigarrow{font:700 54px/1 var(--f-display);color:var(--muted);margin:0 0 6px}
+.btnrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.btn{height:44px;padding:0 18px;border:2px solid var(--ink);border-radius:999px;background:transparent;font:600 14.5px var(--f-body);cursor:pointer}
+.btn.primary{background:var(--ink);color:var(--bg)}
+
+/* actions */
+.actions{display:flex;justify-content:center;align-items:center;gap:14px;margin:0 0 14px}
+.act{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 22px;border-radius:999px;border:2px solid;background:var(--surface);font:600 15px var(--f-body);cursor:pointer}
+.act.no{color:var(--no);border-color:var(--no)}
+.act.yes{color:var(--yes);border-color:var(--yes)}
+.act.ghost{width:48px;padding:0;border-color:var(--rule);color:var(--muted);font-size:18px}
+.act:disabled{opacity:.35;cursor:not-allowed}
+.link{background:none;border:0;padding:6px 2px;color:var(--muted);font:500 13px var(--f-body);text-decoration:underline;cursor:pointer}
+.skiprow{margin:0;text-align:center}
+
+/* summary */
+.sum-intro{margin:14px 2px 14px;font-size:14px;color:var(--muted)}
+.group{background:var(--surface);border:1px solid var(--rule);border-radius:14px;margin:0 0 16px;overflow:hidden}
+.group h3{margin:0;padding:10px 14px;background:var(--ink);color:var(--bg);font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;padding:10px 14px;background:transparent;border:0;border-top:1px solid var(--rule);text-align:left;cursor:pointer}
+.group h3+.row{border-top:0}
+.row .rl{min-width:0}
+.row .rl b{font-weight:600}
+.row small{display:block;color:var(--muted);font-size:12.5px;line-height:1.35}
+.sumactions{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 12px}
+.copybox{width:100%;margin:0 0 12px;padding:10px;border:1px solid var(--rule);border-radius:10px;background:var(--surface);color:var(--ink);font:12px/1.5 var(--f-mono)}
+.fine{font-size:12.5px;color:var(--muted);margin:0 2px 10px}
+.fine a{color:var(--accent)}
+
+.start{margin:18px 2px 0}
+.start .otitle{font-size:40px}
+.start p{margin:0 0 12px;font-size:15px}
+.zipform{display:grid;gap:8px;margin:18px 0 4px}
+.zipform label{font:500 11.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.zipin{width:100%;height:64px;padding:0 16px;border:2px solid var(--ink);border-radius:12px;background:var(--surface);color:var(--ink);font:700 36px var(--f-display);letter-spacing:.2em}
+.zipsel{width:100%;height:46px;padding:0 10px;border:1.5px solid var(--rule);border-radius:10px;background:var(--surface);color:var(--ink);font:400 16px var(--f-body)}
+.err{min-height:20px;margin:0;color:var(--no);font-size:13.5px}
+.distgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:14px 0}
+.distbtn{display:grid;gap:2px;text-align:left;padding:10px 12px;border:1.5px solid var(--rule);border-radius:12px;background:var(--surface);cursor:pointer}
+.distbtn b{font:700 24px/1 var(--f-display)}
+.distbtn small{color:var(--muted);font-size:12.5px;line-height:1.3}
+.distbtn.likely{border-color:var(--accent)}
+.distbtn.cur{box-shadow:0 0 0 2px var(--accent)}
+.linklist{margin:0 0 14px;padding-left:18px;font-size:14px}
+.linklist a,.start a{color:var(--accent)}
+.disclaimer{margin:26px 2px 0;padding-top:14px;border-top:1px dashed var(--rule);font-size:12.5px;line-height:1.5;color:var(--muted)}
+.disclaimer p{margin:0 0 8px}
+.disclaimer a{color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);max-width:calc(100% - 32px);padding:10px 16px;border-radius:999px;background:var(--ink);color:var(--bg);font:500 13.5px var(--f-body);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:20}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}
+}
+
+/* nationwide additions */
+.addrform{display:grid;gap:8px;margin:16px 0 4px}
+.addrform label{font:500 11.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.txtin{width:100%;height:48px;padding:0 12px;border:2px solid var(--ink);border-radius:10px;background:var(--surface);color:var(--ink);font:400 17px var(--f-body)}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:8px}
+.row3{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:8px}
+@media (max-width:380px){.row3{grid-template-columns:1fr 1fr}.row3>:first-child{grid-column:1/-1}}
+.privacy{margin:10px 0 0;padding:10px 12px;border:1px dashed var(--rule);border-radius:10px;background:var(--surface);font-size:13px;color:var(--muted)}
+.spin{width:34px;height:34px;border:4px solid var(--rule);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 0 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sites{list-style:none;margin:0;padding:0}
+.sites li{padding:9px 14px;border-top:1px solid var(--rule);font-size:13.5px}
+.sites li:first-child{border-top:0}
+.sites small{display:block;color:var(--muted);font-size:12.5px}
+.group a{color:var(--accent)}
+.avatar img,.av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.avatar{overflow:hidden}
+.av{overflow:hidden}
+.altel{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+</style>
+
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="brandrow"><h1>Ballot Swipe</h1><span class="where"><span id="where">Your ballot</span> <button type="button" class="link" id="btn-zip" data-act="addr" hidden>Change address</button></span></div>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Sections">
+      <button type="button" class="tab" role="tab" id="tab-q" data-act="tab" data-v="q">Measures<span class="ct" id="cnt-q"></span></button>
+      <button type="button" class="tab" role="tab" id="tab-c" data-act="tab" data-v="c">Candidates<span class="ct" id="cnt-c"></span></button>
+      <button type="button" class="tab" role="tab" id="tab-s" data-act="tab" data-v="s">Summary</button>
+    </nav>
+    <div class="dots" id="dots"></div>
+  </header>
+
+  <main>
+    <section id="view-play">
+      <div id="intro"></div>
+      <div class="legend" aria-hidden="true"><span class="lg no">← Swipe left · No</span><span class="lg yes">Swipe right · Yes →</span></div>
+      <div class="stage" id="stage"></div>
+      <div class="actions" id="actions">
+        <button type="button" class="act no" id="btn-no" data-act="no" aria-label="No">✕ No</button>
+        <button type="button" class="act ghost" id="btn-undo" data-act="undo" aria-label="Undo last swipe">↶</button>
+        <button type="button" class="act yes" id="btn-yes" data-act="yes" aria-label="Yes">✓ Yes</button>
+      </div>
+      <div id="below"></div>
+    </section>
+    <section id="view-sum" hidden></section>
+    <section id="view-start" hidden></section>
+  </main>
+  <footer class="disclaimer">
+    <p><b>Unofficial and informational.</b> Ballot data comes from the Google Civic Information API, which relies on state and local election officials. Coverage varies by place, and some contests, candidates or descriptions may be missing or out of date. This page does not cast a vote or send your choices anywhere. Check your official ballot and sample ballot before you vote.</p>
+    <p><a href="https://vote.gov" target="_blank" rel="noopener noreferrer">Vote.gov</a> links to every state’s election office.</p>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+
+var KEY='ballot-swipe-v2';
+var reduced=false;
+try{ reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+var DUR=reduced?0:270;
+var STATES={AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',DC:'District of Columbia',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming'};
+
+/* data: the normalized ballot from /api/ballot. QUESTIONS and OFFICES are built from it. */
+var data=null, QUESTIONS=[], OFFICES=[];
+var lastAddress='';           // memory only, never written to storage
+var state={view:'a',qi:0,oi:0,q:{},c:{},sel:null,flipped:false};
+var history=[], busy=false, toastTimer=null, loadErr='';
+
+function $(s,r){return (r||document).querySelector(s);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function initials(n){var p=String(n).replace(/[^A-Za-z .'-]/g,'').split(/\s+/).filter(Boolean);return ((p[0]||'?')[0]+(p.length>1?p[p.length-1][0]:'')).toUpperCase();}
+function slug(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60);}
+function url(u){ return (typeof u==='string'&&/^https?:\/\//i.test(u))?u:''; }
+function link(u,t){ u=url(u); return u?'<a href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">'+esc(t)+'</a>':''; }
+function fmtDate(d){
+  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d||''); if(!m) return d||'';
+  var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m[2]-1];
+  return mo+' '+(+m[3])+', '+m[1];
+}
+
+/* ---------- build decks from data ---------- */
+function answerLabels(responses){
+  var yes='',no='';
+  (responses||[]).forEach(function(r){
+    if(!yes&&/^(yes|for|approve|in favor|retain|keep)/i.test(r)) yes=r;
+    else if(!no&&/^(no|against|reject|oppose|do not|don't|remove)/i.test(r)) no=r;
+  });
+  return {yes:yes||'Yes',no:no||'No',exact:!!(yes&&no)};
+}
+function buildDecks(){
+  var seen={};
+  function uid(base){ var id=base||'x',n=1; while(seen[id]){ n++; id=base+'-'+n; } seen[id]=1; return id; }
+  QUESTIONS=(data.measures||[]).map(function(m,i){
+    var L=answerLabels(m.responses);
+    var know=[];
+    if(m.threshold) know.push('To pass: '+m.threshold);
+    if(m.effectOfAbstain) know.push('If you leave it blank: '+m.effectOfAbstain);
+    if(!L.exact&&m.responses&&m.responses.length) know.push('Ballot wording: '+m.responses.join(' / ')+'. Yes here means voting for the measure as described.');
+    return {
+      id:uid('m-'+slug(m.title+'-'+m.district)), n:i+1, title:m.title,
+      kind:[m.level,m.district].filter(Boolean).join(' · ')||'Ballot measure',
+      ask:m.subtitle||m.brief||'', brief:m.subtitle?m.brief:'',
+      yes:L.yes, no:L.no,
+      pro:m.pro, con:m.con, text:m.text, know:know, url:m.url,
+      src:(m.sources||[]).map(function(s){return s.name;}).join(', ')
+    };
+  });
+  OFFICES=(data.races||[]).filter(function(r){return r.candidates&&r.candidates.length;}).map(function(r){
+    var cands=r.candidates.map(function(c,j){
+      return {id:'k'+j+'-'+slug(c.name), name:c.name, party:c.party, url:c.url, photo:c.photo, phone:c.phone, email:c.email, channels:c.channels};
+    });
+    var seats=r.votesAllowed;
+    var parts=[seats+(seats>1?' seats':' seat'), r.level, r.district].filter(Boolean);
+    return {
+      id:uid('o-'+slug(r.office+'-'+r.district)), title:r.office,
+      chip:r.office.length>16?r.office.replace(/^(U\.S\.|State|County|City of)\s+/i,'').slice(0,16):r.office,
+      seats:parts.join(' · '), votes:seats, level:r.level, district:r.district, candidates:cands,
+      note:seats>1?'Vote for up to '+seats+'. Swipe right on each one you pick.':'',
+      src:(r.sources||[]).map(function(s){return s.name;}).join(', ')
+    };
+  });
+}
+
+/* ---------- storage ---------- */
+function load(){
+  try{
+    var raw=localStorage.getItem(KEY); if(!raw) return;
+    var s=JSON.parse(raw);
+    if(!s||typeof s!=='object'||!s.data||typeof s.data!=='object') return;
+    data=s.data; buildDecks();
+    if(s.q&&typeof s.q==='object') state.q=s.q;
+    if(s.c&&typeof s.c==='object') state.c=s.c;
+    if(['q','c','s'].indexOf(s.view)>=0) state.view=s.view;
+    if(typeof s.qi==='number'&&s.qi>=0&&s.qi<=QUESTIONS.length) state.qi=s.qi;
+    if(typeof s.oi==='number'&&s.oi>=0&&s.oi<OFFICES.length) state.oi=s.oi;
+  }catch(e){ data=null; }
+}
+function save(){
+  try{
+    if(!data){ localStorage.removeItem(KEY); return; }
+    localStorage.setItem(KEY,JSON.stringify({data:data,view:state.view,qi:state.qi,oi:state.oi,q:state.q,c:state.c}));
+  }catch(e){}
+}
+
+function getO(id){
+  var s=state.c[id];
+  if(!s){ s=state.c[id]={picks:[],passed:{},skipped:false}; }
+  if(!s.picks) s.picks=[]; if(!s.passed) s.passed={};
+  return s;
+}
+function isDone(o){
+  var s=getO(o.id);
+  if(s.skipped||s.picks.length>=o.votes) return true;
+  return o.candidates.every(function(c){return s.picks.indexOf(c.id)>=0||s.passed[c.id];});
+}
+function candById(o,id){ for(var i=0;i<o.candidates.length;i++) if(o.candidates[i].id===id) return o.candidates[i]; return null; }
+function nextQ(from){
+  var i;
+  for(i=from+1;i<QUESTIONS.length;i++) if(!state.q[QUESTIONS[i].id]) return i;
+  for(i=0;i<=from&&i<QUESTIONS.length;i++) if(!state.q[QUESTIONS[i].id]) return i;
+  return QUESTIONS.length;
+}
+function nextOffice(from){
+  var i;
+  for(i=from+1;i<OFFICES.length;i++) if(!isDone(OFFICES[i])) return i;
+  for(i=0;i<=from;i++) if(!isDone(OFFICES[i])) return i;
+  return -1;
+}
+function scrollTop(){ try{ window.scrollTo(0,0); document.documentElement.scrollTop=0; }catch(e){} }
+function toast(msg){
+  var t=$('#toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove('show');},1900);
+}
+function whereText(){
+  if(!data) return 'Your ballot';
+  var e=data.election;
+  return [data.place, e&&e.date?fmtDate(e.date):''].filter(Boolean).join(' · ')||'Your ballot';
+}
+
+/* ---------- card builders ---------- */
+function sec(title,content,cls){
+  var inner;
+  if(Array.isArray(content)){ inner='<ul>'+content.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>'; }
+  else { inner='<p>'+esc(content)+'</p>'; }
+  return '<div class="sec '+(cls||'')+'"><h3>'+esc(title)+'</h3>'+inner+'</div>';
+}
+function mark(kind,filled,text){
+  return '<li class="mark '+kind+(filled?' filled':'')+'"><span class="oval" aria-hidden="true"></span><div><div class="mk-head">'+(kind==='yes'?'YES →':'← NO')+'</div><p>'+esc(text)+'</p></div></li>';
+}
+function shell(front,back,label){
+  return '<div class="card enter" id="card" tabindex="0" role="group" aria-label="'+esc(label)+'">'+
+    '<div class="inner">'+
+      '<section class="face front" id="face-front" aria-hidden="false">'+front+
+        '<div class="stamp yes" aria-hidden="true">YES</div><div class="stamp no" aria-hidden="true">NO</div>'+
+        '<div class="foot"><button type="button" class="ibtn" id="ibtn-f" data-act="flip" aria-label="More info about this card" aria-pressed="false">i</button></div>'+
+      '</section>'+
+      '<section class="face back" id="face-back" aria-hidden="true" inert>'+back+
+        '<div class="foot"><button type="button" class="ibtn on" id="ibtn-b" data-act="flip" aria-label="Back to the card" aria-pressed="true">i</button></div>'+
+      '</section>'+
+    '</div></div>';
+}
+function ballotpedia(q){ return 'https://ballotpedia.org/wiki/index.php?search='+encodeURIComponent(q); }
+
+function qFront(q,ans){
+  return '<div class="band"><span>Measure <b>'+q.n+'</b></span><span>'+esc(q.kind)+'</span></div>'+
+    '<div class="body"><h2>'+esc(q.title)+'</h2>'+(q.ask?'<p class="ask">'+esc(q.ask)+'</p>':'')+
+    '<ul class="marks">'+mark('yes',ans==='yes','Vote “'+q.yes+'” on this measure.')+mark('no',ans==='no','Vote “'+q.no+'” on this measure.')+'</ul></div>';
+}
+function qBack(q){
+  var s='';
+  if(q.brief) s+=sec('Summary',q.brief);
+  if(q.pro) s+=sec('Case for a Yes vote',q.pro,'yes');
+  if(q.con) s+=sec('Case for a No vote',q.con,'no');
+  if(q.know.length) s+=sec('Good to know',q.know);
+  if(q.text) s+=sec('Full text (excerpt)',q.text.length>900?q.text.slice(0,900)+'…':q.text);
+  if(!s) s='<div class="sec"><p>Your election office did not supply a description for this measure. Use the links below or your sample ballot to read it.</p></div>';
+  return '<div class="band alt"><span>Measure '+q.n+' · details</span><span>Tap i to return</span></div>'+
+    '<div class="body info">'+s+
+    '<p class="src">'+(q.src?'Source: '+esc(q.src)+'. ':'')+link(q.url,'Measure link')+(q.url?' · ':'')+link(ballotpedia(q.title),'Search Ballotpedia')+'</p></div>';
+}
+function avatarHTML(c){
+  return c.photo&&url(c.photo)?'<img src="'+esc(c.photo)+'" alt="" referrerpolicy="no-referrer" loading="lazy" data-n="'+esc(c.name)+'">':esc(initials(c.name));
+}
+function cFront(o,c,st){
+  return '<div class="band"><span>'+esc(o.title)+'</span><span>'+esc(o.votes>1?'Pick up to '+o.votes:o.level||'')+'</span></div>'+
+    '<div class="body"><div class="avatar" aria-hidden="true">'+avatarHTML(c)+'</div>'+
+    '<h2>'+esc(c.name)+'</h2>'+
+    '<p class="party">'+(c.party?'<span class="pill">'+esc(c.party)+'</span>':'')+'<span class="role">'+esc(o.district||'')+'</span></p>'+
+    '<ul class="marks cand-marks">'+
+      mark('yes',st==='pick',o.votes>1?'Pick this candidate. You can pick up to '+o.votes+'.':'Make this your pick. Moves to the next office.')+
+      mark('no',st==='passed','Pass on this candidate. Others in this race stay available.')+
+    '</ul></div>';
+}
+function cBack(o,c){
+  var contact=[];
+  if(c.url) contact.push(link(c.url,'Campaign website'));
+  if(c.phone) contact.push(esc(c.phone));
+  if(c.email&&/^[^\s@<>]+@[^\s@<>]+$/.test(c.email)) contact.push(esc(c.email));
+  (c.channels||[]).forEach(function(ch){
+    var t=(ch.type||'').toLowerCase(), h='';
+    if(t==='twitter') h='https://twitter.com/'+encodeURIComponent(ch.id);
+    else if(t==='facebook') h='https://facebook.com/'+encodeURIComponent(ch.id);
+    else if(t==='youtube') h='https://youtube.com/'+encodeURIComponent(ch.id);
+    if(h) contact.push(link(h,ch.type));
+  });
+  return '<div class="band alt"><span>'+esc(c.name)+' · details</span><span>Tap i to return</span></div>'+
+    '<div class="body info">'+
+    sec('About this race',[o.title+(o.district?' · '+o.district:''), o.level?'Level: '+o.level:'', 'Votes allowed: '+o.votes].filter(Boolean))+
+    sec('About '+c.name,[c.party?'Party: '+c.party:'No party listed','Your election office’s data does not include issue positions or bios. Read the candidate’s own materials and a neutral guide before deciding.'])+
+    '<div class="sec"><h3>Learn more</h3><p>'+(contact.length?contact.join(' · ')+' · ':'')+link(ballotpedia(c.name+' '+o.title),'Search Ballotpedia')+'</p></div>'+
+    '<p class="src">'+(o.src?'Source: '+esc(o.src)+'. ':'')+'Always confirm on your official sample ballot.</p></div>';
+}
+function peeks(n){
+  var p='';
+  if(n>2) p+='<div class="peek p2"></div>';
+  if(n>1) p+='<div class="peek p1"></div>';
+  return p;
+}
+function staticCard(band,right,inner){
+  return '<div class="card static" id="card"><div class="face"><div class="band"><span>'+esc(band)+'</span><span>'+esc(right)+'</span></div><div class="body center">'+inner+'</div></div></div>';
+}
+
+/* ---------- renderers ---------- */
+function renderHeader(){
+  var nq=Object.keys(state.q).length, nc=OFFICES.filter(isDone).length;
+  $('#cnt-q').textContent=data?nq+'/'+QUESTIONS.length:'';
+  $('#cnt-c').textContent=data?nc+'/'+OFFICES.length:'';
+  $('#where').textContent=whereText();
+  $('#btn-zip').hidden=!data||state.view==='a'||state.view==='l';
+  ['q','c','s'].forEach(function(v){ $('#tab-'+v).setAttribute('aria-selected',String(state.view===v)); });
+  var d=$('#dots');
+  if(state.view==='q'&&QUESTIONS.length){
+    d.hidden=false;
+    d.innerHTML=QUESTIONS.map(function(q,i){
+      var a=state.q[q.id];
+      return '<button type="button" class="dot '+(a||'')+(i===state.qi?' cur':'')+'" data-act="dotq" data-i="'+i+'" aria-label="Measure '+q.n+(a?', answered '+a:', not answered')+'">'+q.n+'</button>';
+    }).join('');
+  }else if(state.view==='c'&&OFFICES.length){
+    d.hidden=false;
+    d.innerHTML=OFFICES.map(function(o,i){
+      return '<button type="button" class="dot office'+(isDone(o)?' done':'')+(i===state.oi?' cur':'')+'" data-act="doto" data-i="'+i+'" aria-label="'+esc(o.title)+(isDone(o)?', done':'')+'">'+esc(o.chip)+'</button>';
+    }).join('');
+  }else{ d.hidden=true; d.innerHTML=''; }
+  var cur=d.querySelector('.cur');
+  if(cur){ d.scrollLeft=Math.max(0,cur.offsetLeft-d.clientWidth/2+cur.offsetWidth/2); }
+}
+
+function renderQ(){
+  $('#intro').innerHTML=''; $('#below').innerHTML='';
+  var stage=$('#stage'); stage.className='stage';
+  if(!QUESTIONS.length){
+    stage.innerHTML=staticCard('Measures','None found','<h2>No ballot measures found</h2><p class="ask">Your election office did not list any measures for this address. That can be accurate, or the data may not be loaded yet.</p><div class="btnrow"><button type="button" class="btn primary" data-act="go" data-v="c">On to candidates →</button></div>');
+    return;
+  }
+  if(state.qi>=QUESTIONS.length){
+    var y=0,n=0; Object.keys(state.q).forEach(function(k){ if(state.q[k]==='yes') y++; else n++; });
+    stage.innerHTML=staticCard('Measures','Done','<h2>All '+QUESTIONS.length+' marked</h2><p class="ask">'+y+' Yes · '+n+' No</p>'+
+      '<div class="btnrow"><button type="button" class="btn primary" data-act="go" data-v="c">On to candidates →</button>'+
+      '<button type="button" class="btn" data-act="go" data-v="s">Review summary</button></div>');
+    return;
+  }
+  var q=QUESTIONS[state.qi], ans=state.q[q.id]||'';
+  stage.innerHTML=peeks(QUESTIONS.length-state.qi)+shell(qFront(q,ans),qBack(q),'Measure '+q.n+', '+q.title+'. Swipe right for Yes, left for No, or use the arrow keys.');
+  bindSwipe();
+}
+
+function lineupHTML(o,s){
+  return '<div class="lineup" role="group" aria-label="Candidates for '+esc(o.title)+'">'+o.candidates.map(function(c){
+    var st=s.picks.indexOf(c.id)>=0?'pick':(s.passed[c.id]?'passed':'');
+    var sel=state.sel===c.id;
+    return '<button type="button" class="mini '+st+(sel?' sel':'')+'" data-act="pick" data-cid="'+esc(c.id)+'" aria-pressed="'+sel+'">'+
+      '<span class="av" aria-hidden="true">'+avatarHTML(c)+'</span>'+
+      '<span class="mn"><b>'+esc(c.name)+'</b><small>'+esc(c.party)+(st==='pick'?(c.party?' · ':'')+'your pick':(st==='passed'?(c.party?' · ':'')+'passed':''))+'</small></span>'+
+      '<span class="oval sm'+(st==='pick'?' filled':'')+'" aria-hidden="true"></span></button>';
+  }).join('')+'</div>';
+}
+
+function renderC(){
+  var stage=$('#stage');
+  if(!OFFICES.length){
+    $('#intro').innerHTML=''; $('#below').innerHTML='';
+    stage.className='stage';
+    stage.innerHTML=staticCard('Candidates','None found','<h2>No candidate races found</h2><p class="ask">Your election office did not list candidates for this address. Check the links on the Summary tab for your official sample ballot.</p><div class="btnrow"><button type="button" class="btn primary" data-act="go" data-v="s">Open summary</button></div>');
+    return;
+  }
+  var o=OFFICES[state.oi], s=getO(o.id);
+  $('#intro').innerHTML='<div class="officehead"><p class="eyebrow">Race '+(state.oi+1)+' of '+OFFICES.length+' · '+esc(o.seats)+'</p>'+
+    '<h2 class="otitle">'+esc(o.title)+'</h2>'+
+    '<p class="steps"><b>1</b>Tap a candidate card. <b>2</b>Swipe it right to pick, left to pass.</p>'+
+    (o.note?'<p class="callout">'+esc(o.note)+'</p>':'')+'</div>'+lineupHTML(o,s);
+  $('#below').innerHTML='<p class="skiprow"><button type="button" class="link" data-act="skip">Skip this race</button></p>';
+  stage.className='stage cand';
+  var cand=state.sel?candById(o,state.sel):null;
+  if(cand){
+    var st=s.picks.indexOf(cand.id)>=0?'pick':(s.passed[cand.id]?'passed':'');
+    stage.innerHTML=shell(cFront(o,cand,st),cBack(o,cand),cand.name+', '+o.title+'. Swipe right to pick, left to pass, or use the arrow keys.');
+    bindSwipe();
+  }else{
+    var all=o.candidates.every(function(c){return s.passed[c.id];});
+    var inner=all?
+      '<h2>No pick for '+esc(o.chip)+'</h2><p class="ask">You passed on every candidate, so nothing is marked for this race. Undo to bring one back, or move on.</p><div class="btnrow"><button type="button" class="btn primary" data-act="skip">Next race →</button></div>':
+      '<div class="bigarrow" aria-hidden="true">↑</div><h2>Select a card</h2><p class="ask">Tap a candidate above. Their card opens here. Then swipe right to pick them or left to pass.</p>';
+    stage.innerHTML=staticCard(o.title,o.seats,inner);
+  }
+}
+
+function officeLabel(o){
+  var s=getO(o.id);
+  if(s.picks.length) return {txt:s.picks.map(function(id){var c=candById(o,id);return c?c.name:'';}).filter(Boolean).join(', '),cls:'yes',pill:'Picked'};
+  if(s.skipped||o.candidates.every(function(c){return s.passed[c.id];})) return {txt:'No pick',cls:'none',pill:'Blank'};
+  return {txt:'Not marked yet',cls:'none',pill:'—'};
+}
+function sitesHTML(title,list){
+  if(!list||!list.length) return '';
+  return '<div class="group"><h3>'+esc(title)+'</h3><ul class="sites">'+list.slice(0,6).map(function(s){
+    return '<li><b>'+esc(s.name)+'</b><small>'+esc(s.address)+'</small>'+
+      (s.hours?'<small>Hours: '+esc(s.hours)+'</small>':'')+
+      (s.startDate||s.endDate?'<small>'+esc([s.startDate,s.endDate].filter(Boolean).join(' to '))+'</small>':'')+
+      (s.notes?'<small>'+esc(s.notes)+'</small>':'')+'</li>';
+  }).join('')+'</ul></div>';
+}
+function othersHTML(){
+  var o=data.otherElections||[]; if(!o.length) return '';
+  return '<div class="group"><h3>Other elections found</h3><ul class="sites">'+o.map(function(e){
+    return '<li><b>'+esc(e.name)+'</b><small>'+esc(fmtDate(e.date))+'</small>'+
+      (lastAddress?'<button type="button" class="link" data-act="switchel" data-id="'+esc(e.id)+'">Show this election</button>':'')+'</li>';
+  }).join('')+'</ul>'+(lastAddress?'':'<p class="fine" style="margin:8px 14px">Re-enter your address to switch elections.</p>')+'</div>';
+}
+function renderSummary(){
+  $('#intro').innerHTML=''; $('#below').innerHTML='';
+  var v=$('#view-sum');
+  var qrows=QUESTIONS.map(function(q,i){
+    var a=state.q[q.id];
+    return '<button type="button" class="row" data-act="jumpq" data-i="'+i+'"><span class="rl"><b>'+q.n+'.</b> '+esc(q.title)+
+      '<small>'+(a?'Your vote: '+esc(a==='yes'?q.yes:q.no):'Not marked yet')+'</small></span>'+
+      '<span class="pill '+(a||'none')+'">'+(a?a:'—')+'</span></button>';
+  }).join('');
+  var orows=OFFICES.map(function(o,i){
+    var l=officeLabel(o);
+    return '<button type="button" class="row" data-act="jumpo" data-i="'+i+'"><span class="rl"><b>'+esc(o.title)+'</b><small>'+esc(l.txt)+'</small></span>'+
+      '<span class="pill '+l.cls+'">'+l.pill+'</span></button>';
+  }).join('');
+  var links=(data.links||[]).map(function(l){return '<li>'+link(l.url,l.label)+'</li>';}).join('');
+  var nocand=(data.races||[]).filter(function(r){return !r.candidates||!r.candidates.length;});
+  v.innerHTML='<p class="sum-intro">'+esc(data.election&&data.election.name||'Your ballot')+'. Tap any row to go back and change it. This is a planning sheet and does not submit a ballot.</p>'+
+    (qrows?'<div class="group"><h3>Measures</h3>'+qrows+'</div>':'')+
+    (orows?'<div class="group"><h3>Races</h3>'+orows+'</div>':'')+
+    '<div class="sumactions"><button type="button" class="btn primary" data-act="copy" id="btn-copy">Copy my picks</button>'+
+    '<button type="button" class="btn" data-act="reset" id="btn-reset">Start over</button></div>'+
+    '<textarea class="copybox" id="copybox" rows="12" readonly hidden aria-label="Your picks as text"></textarea>'+
+    (nocand.length?'<p class="fine">Races listed without candidates (not shown as cards): '+nocand.map(function(r){return esc(r.office);}).join('; ')+'.</p>':'')+
+    (data.mailOnly?'<p class="callout">Your area votes by mail only.</p>':'')+
+    sitesHTML('Polling places',data.polling)+sitesHTML('Early voting',data.early)+sitesHTML('Ballot drop-off',data.dropoff)+
+    othersHTML()+
+    (links?'<div class="group"><h3>'+esc(data.stateName?data.stateName+' election office':'Official links')+'</h3><ul class="sites">'+links.replace(/<li>/g,'<li>')+'</ul></div>':'')+
+    '<p class="fine">Not every race appears in this data. Compare against your official sample ballot, and confirm polling place and hours with your election office.</p>';
+}
+
+function canSwipeNow(){
+  if(state.view==='q') return QUESTIONS.length>0&&state.qi<QUESTIONS.length;
+  if(state.view==='c') return !!state.sel;
+  return false;
+}
+function renderActions(){
+  var ok=canSwipeNow();
+  $('#actions').hidden=state.view==='s'||!data;
+  $('#btn-yes').disabled=!ok; $('#btn-no').disabled=!ok;
+  $('#btn-undo').disabled=history.length===0;
+}
+
+function renderAddr(){
+  $('#intro').innerHTML=''; $('#below').innerHTML='';
+  var opts='<option value="">State</option>'+Object.keys(STATES).map(function(k){return '<option value="'+k+'">'+esc(k)+'</option>';}).join('');
+  $('#view-start').innerHTML='<div class="start"><p class="eyebrow">Step 1</p><h2 class="otitle">Where do you vote?</h2>'+
+    '<p>Enter the address where you are registered. Districts cut across ZIP codes, so a full street address is the only way to get the ballot you will actually see.</p>'+
+    '<form class="addrform" id="addrform" novalidate autocomplete="on">'+
+    '<label for="a-street">Street address</label>'+
+    '<input class="txtin" id="a-street" name="street" type="text" autocomplete="address-line1" placeholder="123 Main St, Apt 4" aria-describedby="addrerr">'+
+    '<div class="row3"><div><label for="a-city">City</label><input class="txtin" id="a-city" name="city" type="text" autocomplete="address-level2"></div>'+
+    '<div><label for="a-state">State</label><select class="txtin" id="a-state" name="state" autocomplete="address-level1">'+opts+'</select></div>'+
+    '<div><label for="a-zip">ZIP</label><input class="txtin" id="a-zip" name="zip" type="text" inputmode="numeric" maxlength="5" autocomplete="postal-code"></div></div>'+
+    '<p class="err" id="addrerr" role="alert">'+esc(loadErr)+'</p>'+
+    '<button type="submit" class="btn primary">Build my ballot →</button></form>'+
+    '<p class="privacy"><b>Your address:</b> it is sent once, over HTTPS, to this site’s server and on to Google’s Civic Information service to look up your ballot. It is not saved, logged or shown again, and is not kept in this browser. Your picks stay in this browser only.</p>'+
+    '<p class="fine">Prefer not to? <a href="https://vote.gov" target="_blank" rel="noopener noreferrer">Vote.gov</a> links to your state’s official ballot lookup.</p></div>';
+}
+function renderLoading(){
+  $('#intro').innerHTML=''; $('#below').innerHTML='';
+  $('#view-start').innerHTML='<div class="start"><div class="spin" role="status" aria-label="Loading"></div><h2 class="otitle">Finding your ballot…</h2><p>Checking your address with election data.</p></div>';
+}
+
+function render(){
+  busy=false;
+  renderHeader();
+  var play=(state.view==='q'||state.view==='c');
+  $('#view-play').hidden=!play;
+  $('#view-sum').hidden=state.view!=='s';
+  $('#view-start').hidden=(play||state.view==='s');
+  $('#tabs').hidden=!(data&&(play||state.view==='s'));
+  if(state.view==='q') renderQ();
+  else if(state.view==='c') renderC();
+  else if(state.view==='s') renderSummary();
+  else if(state.view==='l') renderLoading();
+  else renderAddr();
+  renderActions();
+  save();
+}
+
+/* ---------- state changes ---------- */
+function snapshot(){
+  history.push(JSON.stringify({view:state.view,qi:state.qi,oi:state.oi,q:state.q,c:state.c,sel:state.sel}));
+  if(history.length>80) history.shift();
+}
+function undo(){
+  if(!history.length) return;
+  var s=JSON.parse(history.pop());
+  state.view=s.view; state.qi=s.qi; state.oi=s.oi; state.q=s.q; state.c=s.c; state.sel=s.sel; state.flipped=false;
+  render();
+}
+function go(v){
+  if(!data) v='a';
+  state.view=v; state.flipped=false; state.sel=null;
+  render(); scrollTop();
+}
+function advanceOffice(){
+  var n=nextOffice(state.oi);
+  if(n<0){ state.view='s'; state.sel=null; }
+  else { state.oi=n; state.sel=null; }
+  state.flipped=false;
+}
+function skipOffice(){
+  var o=OFFICES[state.oi], s=getO(o.id);
+  snapshot(); s.skipped=true; state.sel=null;
+  advanceOffice(); render(); scrollTop();
+}
+function commit(dir){
+  if(state.view==='q'){
+    var q=QUESTIONS[state.qi]; if(!q){ busy=false; return; }
+    snapshot();
+    state.q[q.id]=dir>0?'yes':'no';
+    state.qi=nextQ(state.qi);
+    state.flipped=false;
+    render();
+  }else if(state.view==='c'){
+    var o=OFFICES[state.oi], s=getO(o.id), cid=state.sel;
+    var c=candById(o,cid); if(!c){ busy=false; return; }
+    snapshot();
+    if(dir>0){
+      if(s.picks.indexOf(cid)<0) s.picks.push(cid);
+      delete s.passed[cid]; s.skipped=false; state.sel=null;
+      toast(o.chip+': '+c.name+(o.votes>1?' ('+s.picks.length+' of '+o.votes+')':''));
+      if(isDone(o)){ advanceOffice(); render(); scrollTop(); }
+      else { state.flipped=false; render(); }
+    }else{
+      s.passed[cid]=true; s.picks=s.picks.filter(function(x){return x!==cid;});
+      state.sel=null; state.flipped=false;
+      render();
+    }
+  }else{ busy=false; }
+}
+
+/* ---------- gestures ---------- */
+function tint(card,dx){
+  var p=Math.min(1,Math.abs(dx)/110);
+  var y=card.querySelector('.stamp.yes'), n=card.querySelector('.stamp.no');
+  if(y) y.style.opacity=dx>0?String(p):'0';
+  if(n) n.style.opacity=dx<0?String(p):'0';
+  card.style.setProperty('--tintc',dx>0?'var(--yes-bg)':'var(--no-bg)');
+  card.style.setProperty('--tinta',String(p*.9));
+}
+function swipe(dir){
+  if(busy||!canSwipeNow()) return;
+  var card=$('#card'); if(!card||card.classList.contains('static')) return;
+  busy=true;
+  card.classList.remove('settle','dragging'); card.classList.add('leaving');
+  card.style.transform='translateX('+(dir*Math.max(420,window.innerWidth*1.1))+'px) rotate('+(dir*24)+'deg)';
+  card.style.opacity='0';
+  tint(card,dir*110);
+  setTimeout(function(){ commit(dir); },DUR);
+}
+function bindSwipe(){
+  var card=$('#card'); if(!card||card.classList.contains('static')) return;
+  var sx=0,dx=0,drag=false,pid=null;
+  function reset(){
+    card.classList.add('settle'); card.style.transform=''; tint(card,0);
+    card.style.setProperty('--tinta','0');
+  }
+  card.addEventListener('pointerdown',function(e){
+    if(busy||state.flipped||flipping) return;
+    if(e.pointerType==='mouse'&&e.button!==0) return;
+    if(e.target.closest('button,a')) return;
+    drag=true; sx=e.clientX; dx=0; pid=e.pointerId;
+    try{ card.setPointerCapture(pid); }catch(err){}
+    card.classList.remove('settle'); card.classList.add('dragging');
+  });
+  card.addEventListener('pointermove',function(e){
+    if(!drag||e.pointerId!==pid) return;
+    dx=e.clientX-sx;
+    card.style.transform='translateX('+dx+'px) rotate('+(dx/16)+'deg)';
+    tint(card,dx);
+  });
+  card.addEventListener('pointerup',function(e){
+    if(!drag||e.pointerId!==pid) return;
+    drag=false; card.classList.remove('dragging');
+    var thr=Math.min(110,card.offsetWidth*.28);
+    if(dx>thr) swipe(1); else if(dx<-thr) swipe(-1); else reset();
+  });
+  var wx=0, wtimer=null;
+  card.addEventListener('wheel',function(e){
+    if(busy||state.flipped||flipping) return;
+    if(Math.abs(e.deltaX)<=Math.abs(e.deltaY)) return;
+    e.preventDefault();
+    var thr=Math.min(110,card.offsetWidth*.28);
+    wx=Math.max(-320,Math.min(320,wx-e.deltaX));
+    card.classList.remove('settle');
+    card.style.transform='translateX('+wx+'px) rotate('+(wx/16)+'deg)';
+    tint(card,wx);
+    clearTimeout(wtimer);
+    if(Math.abs(wx)>=thr*1.6){ var d0=wx; wx=0; swipe(d0>0?1:-1); return; }
+    wtimer=setTimeout(function(){
+      var d=wx; wx=0;
+      if(d>thr) swipe(1); else if(d<-thr) swipe(-1); else reset();
+    },140);
+  },{passive:false});
+  card.addEventListener('pointercancel',function(e){
+    if(!drag) return;
+    drag=false; card.classList.remove('dragging'); reset();
+  });
+}
+
+var flipping=false;
+function setFlip(v){
+  var c=$('#card'), f=$('#face-front'), b=$('#face-back');
+  if(!c||!f||!b||flipping) return;
+  var inner=c.querySelector('.inner');
+  state.flipped=v;
+  function apply(){
+    c.classList.toggle('flipped',v);
+    if(v){ f.setAttribute('inert',''); b.removeAttribute('inert'); }
+    else { b.setAttribute('inert',''); f.removeAttribute('inert'); }
+    f.setAttribute('aria-hidden',v?'true':'false'); b.setAttribute('aria-hidden',v?'false':'true');
+    var pf=$('#ibtn-f'); if(pf) pf.setAttribute('aria-pressed',String(v));
+    var btn=$(v?'#ibtn-b':'#ibtn-f');
+    if(btn){ try{ btn.focus({preventScroll:true}); }catch(e){ btn.focus(); } }
+  }
+  if(reduced||!inner){ apply(); return; }
+  flipping=true;
+  inner.style.transform='perspective(900px) rotateY('+(v?90:-90)+'deg)';
+  setTimeout(function(){
+    apply();
+    inner.style.transition='none';
+    inner.style.transform='perspective(900px) rotateY('+(v?-90:90)+'deg)';
+    void inner.offsetWidth;
+    inner.style.transition='';
+    inner.style.transform='';
+    setTimeout(function(){ flipping=false; },200);
+  },190);
+}
+
+/* ---------- summary helpers ---------- */
+function picksText(){
+  var e=data&&data.election;
+  var L=['Ballot Swipe picks · '+(data?data.place:'')+' · '+(e?e.name+' '+fmtDate(e.date):''),'(planning notes only, not a ballot)'];
+  if(QUESTIONS.length){
+    L.push('','MEASURES');
+    QUESTIONS.forEach(function(q){
+      var a=state.q[q.id];
+      L.push(q.n+'. '+q.title+': '+(a?(a==='yes'?q.yes:q.no):'not marked'));
+    });
+  }
+  if(OFFICES.length){
+    L.push('','RACES');
+    OFFICES.forEach(function(o){ L.push(o.title+(o.district?' ('+o.district+')':'')+': '+officeLabel(o).txt); });
+  }
+  return L.join('\n');
+}
+function copyPicks(){
+  var text=picksText(), btn=$('#btn-copy'), box=$('#copybox');
+  function showBox(){ box.hidden=false; box.value=text; box.focus(); box.select(); }
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){
+        btn.textContent='Copied'; setTimeout(function(){btn.textContent='Copy my picks';},1800);
+      },function(){ showBox(); });
+    }else{ showBox(); }
+  }catch(e){ showBox(); }
+}
+var resetTimer=null;
+function resetAll(btn){
+  if(btn.getAttribute('data-armed')!=='1'){
+    btn.setAttribute('data-armed','1'); btn.textContent='Tap again to clear all';
+    clearTimeout(resetTimer);
+    resetTimer=setTimeout(function(){ btn.removeAttribute('data-armed'); btn.textContent='Start over'; },3500);
+    return;
+  }
+  state.q={}; state.c={}; state.qi=0; state.oi=0; state.sel=null; state.flipped=false; history=[];
+  state.view=QUESTIONS.length?'q':'c';
+  render(); scrollTop();
+}
+
+/* ---------- lookup ---------- */
+function startView(){ return QUESTIONS.length?'q':(OFFICES.length?'c':'s'); }
+function lookup(address,electionId){
+  loadErr=''; state.view='l'; render(); scrollTop();
+  var ctl=(typeof AbortController!=='undefined')?new AbortController():null;
+  var to=setTimeout(function(){ if(ctl) ctl.abort(); },25000);
+  fetch('/api/ballot',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address:address,electionId:electionId||''}),signal:ctl?ctl.signal:undefined,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'})
+    .then(function(r){ return r.json().catch(function(){return {};}).then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
+    .then(function(res){
+      clearTimeout(to);
+      if(!res.ok||!res.j||res.j.error){
+        loadErr=(res.j&&res.j.message)||'The lookup failed. Please try again.';
+        state.view='a'; render(); return;
+      }
+      lastAddress=address;
+      data=res.j; buildDecks();
+      state.q={}; state.c={}; state.qi=0; state.oi=0; state.sel=null; state.flipped=false; history=[];
+      state.view=startView();
+      render(); scrollTop();
+    })
+    .catch(function(){
+      clearTimeout(to);
+      loadErr='Could not reach the lookup service. Check your connection and try again.';
+      state.view='a'; render();
+    });
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-act]'); if(!t||t.disabled) return;
+  var a=t.getAttribute('data-act');
+  if(a==='tab'||a==='go'){ go(t.getAttribute('data-v')); }
+  else if(a==='dotq'){ state.qi=+t.getAttribute('data-i'); state.flipped=false; render(); }
+  else if(a==='doto'){ state.oi=+t.getAttribute('data-i'); state.sel=null; state.flipped=false; render(); }
+  else if(a==='pick'){
+    var id=t.getAttribute('data-cid'); state.sel=(state.sel===id)?null:id; state.flipped=false; render();
+    var st=$('#stage'); if(st&&state.sel){ try{ st.scrollIntoView({block:'nearest',behavior:reduced?'auto':'smooth'}); }catch(err){} }
+  }
+  else if(a==='yes'){ swipe(1); }
+  else if(a==='no'){ swipe(-1); }
+  else if(a==='undo'){ undo(); }
+  else if(a==='flip'){ setFlip(!state.flipped); }
+  else if(a==='skip'){ skipOffice(); }
+  else if(a==='jumpq'){ state.view='q'; state.qi=+t.getAttribute('data-i'); state.flipped=false; render(); scrollTop(); }
+  else if(a==='jumpo'){ state.view='c'; state.oi=+t.getAttribute('data-i'); state.sel=null; state.flipped=false; render(); scrollTop(); }
+  else if(a==='addr'){ lastAddress=''; state.view='a'; state.flipped=false; render(); scrollTop(); }
+  else if(a==='switchel'){ if(lastAddress) lookup(lastAddress,t.getAttribute('data-id')); }
+  else if(a==='copy'){ copyPicks(); }
+  else if(a==='reset'){ resetAll(t); }
+});
+document.addEventListener('keydown',function(e){
+  if(e.defaultPrevented||e.metaKey||e.ctrlKey||e.altKey) return;
+  var tag=(e.target&&e.target.tagName)||'';
+  if(tag==='TEXTAREA'||tag==='INPUT'||tag==='SELECT') return;
+  if(e.key==='ArrowRight'&&canSwipeNow()){ e.preventDefault(); swipe(1); }
+  else if(e.key==='ArrowLeft'&&canSwipeNow()){ e.preventDefault(); swipe(-1); }
+  else if((e.key==='i'||e.key==='I')&&$('#face-front')){ e.preventDefault(); setFlip(!state.flipped); }
+});
+// Broken candidate photos fall back to initials.
+document.addEventListener('error',function(e){
+  var im=e.target; if(!im||im.tagName!=='IMG') return;
+  var host=im.parentNode; if(host) host.textContent=initials(im.getAttribute('data-n')||'?');
+},true);
+
+document.addEventListener('submit',function(e){
+  if(!e.target||e.target.id!=='addrform') return;
+  e.preventDefault();
+  var street=($('#a-street').value||'').trim(), city=($('#a-city').value||'').trim(),
+      st=$('#a-state').value, zip=($('#a-zip').value||'').replace(/\D/g,'').slice(0,5), err=$('#addrerr');
+  if(!street||!/\d/.test(street)){ err.textContent='Enter your street address, including the house number.'; return; }
+  if(zip.length!==5&&!(city&&st)){ err.textContent='Add a 5-digit ZIP, or both a city and a state.'; return; }
+  var tail=[city,(st+' '+zip).trim()].filter(Boolean).join(', ');
+  lookup(street+', '+tail);
+  // Clear the typed address from the DOM right away.
+  ['#a-street','#a-city','#a-zip'].forEach(function(s){ var el=$(s); if(el) el.value=''; });
+});
+
+load();
+if(!data) state.view='a';
+else if(['q','c','s'].indexOf(state.view)<0) state.view=startView();
+if(state.view==='q'&&!QUESTIONS.length) state.view=startView();
+if(state.view==='c'&&!OFFICES.length) state.view=startView();
+render();
+})();
+
+</script>
+</body>
+</html>
